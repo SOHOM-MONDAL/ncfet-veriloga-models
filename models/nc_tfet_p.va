@@ -1,0 +1,283 @@
+`include "constants.vams"
+`include "disciplines.vams"
+
+module nc_tfet_p(d, g, s, b);
+
+    inout d, g, s, b;
+    electrical d, g, s, b;
+
+    //============================================================
+    // DEVICE GEOMETRY
+    //============================================================
+
+    parameter real W       = 1.0u;
+    parameter real LCH     = 10n;
+    parameter real TSI     = 10n;
+
+    parameter real LSOURCE = 20n;
+    parameter real LDRAIN  = 20n;
+
+    //============================================================
+    // MATERIAL PARAMETERS
+    //============================================================
+
+    parameter real TOX = 1n;
+    parameter real TFE = 5n;
+
+    parameter real EPS_SI = 11.7;
+    parameter real EPS_OX = 3.9;
+    parameter real EPS_FE = 25.0;
+
+    parameter real EG = 1.12;
+
+    // Effective tunneling mass
+    parameter real M_TUN = 0.20;
+
+    //============================================================
+    // DOPING PARAMETERS
+    //============================================================
+
+    parameter real NSOURCE  = 8.0e19;
+    parameter real NCHANNEL = 5.0e17;
+    parameter real NDRAIN   = 5.0e18;
+
+    //============================================================
+    // GATE PARAMETERS
+    //============================================================
+
+    parameter real PHI_M = 4.10;
+    parameter real VFB   = 0.0;
+
+    //============================================================
+    // BTBT / KANE PARAMETERS
+    //============================================================
+    
+    // FINALIZED: Tuned to 1.8e19 to match the 250uA reference curve
+    parameter real A_BTBT = 1.8e19;
+    parameter real B_BTBT = 2.0e7;
+
+    parameter real BTBT_POWER = 2.0;
+
+    // Effective tunneling length
+    parameter real LTUN = 3n;
+
+    //============================================================
+    // SOURCE-DRAIN DIRECT TUNNELING
+    //============================================================
+
+    parameter real A_SDT = 1.0e-9;
+    parameter real B_SDT = 1.0e9;
+
+    //============================================================
+    // NEGATIVE CAPACITANCE
+    //============================================================
+    
+    // FINALIZED: Scaled to -0.01 for correct per-unit-area math
+    parameter real CFE0 = -0.01;
+    parameter real FE_NONLIN = 1.0e-3;
+
+    //============================================================
+    // TEMPERATURE PARAMETERS
+    //============================================================
+
+    parameter real TNOM = 300.0;
+    parameter real EG_TEMP_COEFF = 4.73e-4;
+
+    //============================================================
+    // JUNCTION CAPACITANCE PARAMETERS
+    //============================================================
+
+    parameter real CJ0 = 1e-3;
+    parameter real VJ  = 0.7;
+    parameter real MJ  = 0.5;
+
+    //============================================================
+    // INTERNAL VARIABLES
+    //============================================================
+
+    real temperature;
+    real VT;
+
+    real epssi;
+    real epsox;
+    real epsfe;
+
+    real Cox;
+    real Csi;
+    real Cbase;
+
+    real Cfe;
+    real Ctot;
+
+    real VGS;
+    real VDS;
+    real VBS;
+
+    real VDB;
+    real VSB;
+
+    real VG_INT;
+    real phi_s;
+    real E_tun;
+
+    real Eg_T;
+
+    real R_BTBT;
+    real I_BTBT;
+
+    real I_SDT;
+    real I_TOTAL;
+
+    real QCH;
+    real QFE;
+
+    real QG;
+    real QD;
+    real QS;
+    real QB;
+
+    real QDB;
+    real QSB;
+
+    real CDB;
+    real CSB;
+
+    //============================================================
+    // ANALOG MODEL
+    //============================================================
+
+    analog begin
+
+        //========================================================
+        // TEMPERATURE & PERMITTIVITY
+        //========================================================
+
+        temperature = $temperature;
+        VT = `P_K * temperature / `P_Q;
+
+        epssi = EPS_SI * `P_EPS0;
+        epsox = EPS_OX * `P_EPS0;
+        epsfe = EPS_FE * `P_EPS0;
+
+        //========================================================
+        // TERMINAL VOLTAGES (INVERTED FOR PMOS)
+        //========================================================
+
+        VGS = -V(g,s);
+        VDS = -V(d,s);
+        VBS = -V(b,s);
+
+        VDB = -V(d,b);
+        VSB = -V(s,b);
+
+        //========================================================
+        // CAPACITANCES PER UNIT AREA
+        //========================================================
+
+        Cox = epsox / TOX;
+        Csi = epssi / TSI;
+        Cbase = (Cox * Csi) / (Cox + Csi);
+
+        Cfe = CFE0 / (1.0 + FE_NONLIN * abs(VGS));
+
+        if (abs(Cbase + Cfe) > 1.0e-30)
+            Ctot = (Cbase * Cfe) / (Cbase + Cfe);
+        else
+            Ctot = 1.0e-30;
+
+        //========================================================
+        // INTERNAL GATE VOLTAGE (NC Amplification)
+        //========================================================
+
+        if (abs(1.0 + Cbase/Cfe) > 1.0e-12)
+            VG_INT = VGS / (1.0 + Cbase/Cfe);
+        else
+            VG_INT = VGS;
+
+        //========================================================
+        // BANDGAP & SURFACE POTENTIAL
+        //========================================================
+
+        phi_s = VG_INT - VFB;
+        if (phi_s < 0.0)
+            phi_s = 0.0;
+
+        Eg_T = EG - EG_TEMP_COEFF * (temperature - TNOM);
+        if (Eg_T < 0.1)
+            Eg_T = 0.1;
+
+        //========================================================
+        // TUNNELING ELECTRIC FIELD
+        //========================================================
+
+        if (LTUN > 1.0e-15)
+            E_tun = phi_s / LTUN;
+        else
+            E_tun = 1.0;
+
+        if (E_tun < 1.0)
+            E_tun = 1.0;
+
+        //========================================================
+        // BTBT / KANE TUNNELING CALCULATION
+        //========================================================
+
+        R_BTBT = A_BTBT * pow(E_tun, BTBT_POWER) * exp(-B_BTBT/E_tun);
+
+        I_BTBT = `P_Q * W * LTUN * TSI * R_BTBT;
+
+        I_SDT = A_SDT * W * exp(-B_SDT * LCH) * abs(VDS);
+
+        // FINALIZED: Tanh function applied for smooth drain saturation
+        I_TOTAL = I_BTBT * tanh(VDS / 0.1) + I_SDT;
+
+        //========================================================
+        // DRAIN-SOURCE CURRENT CONTRIBUTION (INVERTED)
+        //========================================================
+
+        I(d,s) <+ -I_TOTAL;
+
+        //========================================================
+        // CHANNEL & FERROELECTRIC CHARGE
+        //========================================================
+
+        QCH = -Ctot * W * LCH * VG_INT;
+        QFE = Cfe * W * LCH * VG_INT;
+
+        QG = -(QCH + QFE);
+        QD = 0.5 * QCH;
+        QS = 0.5 * QCH;
+        QB = -(QG + QD + QS);
+
+        //========================================================
+        // JUNCTION CAPACITANCES
+        //========================================================
+
+        if ((1.0 - VDB/VJ) > 0.01) begin
+            CDB = CJ0 * W * LCH * pow(1.0 - VDB/VJ, -MJ);
+        end else begin
+            CDB = CJ0 * W * LCH * pow(0.01,-MJ);
+        end
+
+        if ((1.0 - VSB/VJ) > 0.01) begin
+            CSB = CJ0 * W * LCH * pow(1.0 - VSB/VJ, -MJ);
+        end else begin
+            CSB = CJ0 * W * LCH * pow(0.01,-MJ);
+        end
+
+        QDB = CDB * VDB;
+        QSB = CSB * VSB;
+
+        //========================================================
+        // CHARGE-BASED TERMINAL CURRENTS (INVERTED)
+        //========================================================
+
+        I(g) <+ ddt(-QG);
+        I(d) <+ ddt(-(QD + QDB));
+        I(s) <+ ddt(-(QS + QSB));
+        I(b) <+ ddt(-(QB - QDB - QSB));
+
+    end
+
+endmodule
+

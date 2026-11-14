@@ -1,0 +1,13 @@
+// CMOS-style inverter built from nc_tfet_p / nc_tfet_n, VDD = 1 V
+simulator lang=spectre
+ahdl_include "../../models/nc_tfet_n.va"
+ahdl_include "../../models/nc_tfet_p.va"
+
+Vdd (vdd 0) vsource dc=1
+Vin (in 0) vsource type=pulse val0=0 val1=1 delay=10n rise=50p fall=50p width=10n period=20n
+
+P1 (out in vdd vdd) nc_tfet_p
+N1 (out in 0 0)     nc_tfet_n
+
+tran_inv tran stop=100n maxstep=50p
+save in out

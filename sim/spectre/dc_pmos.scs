@@ -1,0 +1,17 @@
+// DC output characteristics: nc_tfet_p
+// Source and body at VDD = 1 V. Gate = vgs (0 -> |Vgs| = 1 V, strongest ON).
+// Drain = 1 - vsd, so vsd = |Vds|.
+simulator lang=spectre
+ahdl_include "../../models/nc_tfet_p.va"
+
+parameters vgs=0 vsd=0
+
+Vs (s 0) vsource dc=1
+Vd (d 0) vsource dc=1-vsd
+Vg (g 0) vsource dc=vgs
+P1 (d g s s) nc_tfet_p
+
+sweep_vgs sweep param=vgs values=[0 0.2 0.4 0.6 0.8 1.0] {
+    dc_vsd dc param=vsd start=0 stop=1 step=0.01
+}
+save P1:d

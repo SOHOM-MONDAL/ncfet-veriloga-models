@@ -1,0 +1,14 @@
+# Cadence / Spectre outputs
+*.raw/
+*.psf
+*.log
+*.ahdlSimDB/
+simulation/
+libManager.log
+.cadence/
+cds.lib.local
+*.swp
+# Python
+__pycache__/
+*.pyc
+.venv/

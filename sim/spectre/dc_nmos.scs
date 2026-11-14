@@ -1,0 +1,14 @@
+// DC output characteristics: nc_tfet_n  (Id vs Vds, stepped Vgs)
+simulator lang=spectre
+ahdl_include "../../models/nc_tfet_n.va"
+
+parameters vgs=0 vds=0
+
+Vd (d 0) vsource dc=vds
+Vg (g 0) vsource dc=vgs
+N1 (d g 0 0) nc_tfet_n
+
+sweep_vgs sweep param=vgs values=[0 0.2 0.4 0.6 0.8 1.0] {
+    dc_vds dc param=vds start=0 stop=1 step=0.01
+}
+save N1:d
