@@ -100,6 +100,12 @@ The half adder was built in Virtuoso schematic form; there is no standalone netl
 - The charge currents use single-node `I(g)`, `I(d)`, `I(s)`, `I(b)` contributions (branches to ground). This is fine for the circuits here; for floating-node or more general circuits, consider branch contributions between terminals such as `I(g,s)`.
 - The models were simulated with Spectre in Cadence Virtuoso; they have not been checked against other Verilog-A simulators.
 
+## Authors & Contributors
+
+- **Sohom Mondal** ([@SOHOM-MONDAL](https://github.com/SOHOM-MONDAL))
+- **Subha Ghanta** ([@SubhaGhanta09](https://github.com/SubhaGhanta09))
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
